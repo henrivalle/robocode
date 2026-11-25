@@ -3,41 +3,52 @@
 set -euo pipefail
 
 DISPLAY_NUM="${DISPLAY_NUM:-:1}"
-VNC_PORT="${VNC_PORT:-5901}"
-NOVNC_PORT="${NOVNC_PORT:-6080}"
 GEOMETRY="${GEOMETRY:-1920x1080x24}"
 VNC_PASSWORD="${VNC_PASSWORD:-}"
 
-/opt/scripts/install_robocode.sh
+mkdir -p /opt/robocode/{battles,config,robots,roborumble}
 
-Xvfb "${DISPLAY_NUM}" -screen 0 "${GEOMETRY}" &
-XVFB_PID=$!
+pids=()
+cleanup() {
+  if (( ${#pids[@]} )); then
+    kill "${pids[@]}" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
 
 export DISPLAY="${DISPLAY_NUM}"
+Xvfb "${DISPLAY}" -screen 0 "${GEOMETRY}" -nolisten tcp &
+pids+=("$!")
 
-fluxbox >/tmp/fluxbox.log 2>&1 &
-FLUXBOX_PID=$!
-
-if [[ -n "${VNC_PASSWORD}" ]]; then
-  mkdir -p /root/.vnc
-  x11vnc -storepasswd "${VNC_PASSWORD}" /root/.vnc/passwd
-  x11vnc -display "${DISPLAY}" -rfbport "${VNC_PORT}" -forever -shared -rfbauth /root/.vnc/passwd >/tmp/x11vnc.log 2>&1 &
-else
-  x11vnc -display "${DISPLAY}" -rfbport "${VNC_PORT}" -forever -shared -nopw >/tmp/x11vnc.log 2>&1 &
+for ((attempt = 0; attempt < 50; attempt++)); do
+  if xdpyinfo >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.2
+done
+if ! xdpyinfo >/dev/null 2>&1; then
+  echo "Xvfb did not start on ${DISPLAY}." >&2
+  exit 1
 fi
-X11VNC_PID=$!
 
-/usr/share/novnc/utils/novnc_proxy --vnc "127.0.0.1:${VNC_PORT}" --listen "${NOVNC_PORT}" >/tmp/novnc.log 2>&1 &
-NOVNC_PID=$!
+fluxbox &
+pids+=("$!")
+
+vnc_auth=(-nopw)
+if [[ -n "${VNC_PASSWORD}" ]]; then
+  (umask 077; mkdir -p /root/.vnc; x11vnc -storepasswd "${VNC_PASSWORD}" /root/.vnc/passwd)
+  vnc_auth=(-rfbauth /root/.vnc/passwd)
+fi
+x11vnc -display "${DISPLAY}" -localhost -rfbport 5901 -forever -shared "${vnc_auth[@]}" &
+pids+=("$!")
+
+/usr/share/novnc/utils/novnc_proxy --vnc 127.0.0.1:5901 --listen 6080 &
+pids+=("$!")
 
 echo "Starting Robocode..."
-/opt/robocode/robocode.sh >/tmp/robocode.log 2>&1 &
-ROBOCODE_PID=$!
+./robocode.sh &
+pids+=("$!")
 
-cleanup() {
-  kill "${ROBOCODE_PID}" "${NOVNC_PID}" "${X11VNC_PID}" "${FLUXBOX_PID}" "${XVFB_PID}" 2>/dev/null || true
-}
-
-trap cleanup EXIT INT TERM
-
-wait "${ROBOCODE_PID}"
+wait -n "${pids[@]}"
