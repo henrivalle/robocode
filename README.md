@@ -1,54 +1,28 @@
-# Robocode via navegador (Linux)
+# Robocode Classroom
 
-Este projeto publica o Robocode em um servidor Linux para uso no navegador, sem instalacao local nos computadores dos alunos.
+[Português (Brasil)](README.pt-BR.md)
 
-## Como funciona
+Run Classic Robocode in a browser for Java programming labs. A Docker service starts the game on a virtual desktop and serves it via noVNC. Students need a browser. The host needs Docker Engine 28+ with BuildKit and Docker Compose v2 or newer.
 
-- O Robocode roda em um container Docker com desktop virtual (`Xvfb`).
-- A interface grafica do Robocode e exposta por `noVNC`.
-- Os alunos acessam usando URL HTTP/HTTPS.
-
-## Requisitos no servidor
-
-- Linux com Docker Engine instalado
-- Docker Compose (`docker compose`)
-- Porta TCP liberada (padrao `6080`)
-
-## Deploy rapido
-
-1. Copie os arquivos deste diretorio para o servidor.
-2. Ajuste a senha no arquivo `.env` (ou gere com o exemplo):
+## Start a lab
 
 ```bash
 cp .env.example .env
-```
-
-3. Rode o deploy:
-
-```bash
-chmod +x deploy-linux.sh scripts/*.sh
 ./deploy-linux.sh
 ```
 
-4. Abra no navegador:
+Open [http://127.0.0.1:6080/vnc.html](http://127.0.0.1:6080/vnc.html) on the Docker host and choose **Connect**. Set `ROBOCODE_WEB_PORT` in `.env` if port 6080 is in use. Change `ROBOCODE_GEOMETRY` to set the virtual desktop size.
 
-```text
-http://SEU_SERVIDOR:6080/vnc.html
+The service listens on host loopback. For an instructor connecting to a remote host, use an SSH tunnel, for example `ssh -N -L 6080:127.0.0.1:6080 USER@HOST`. For classroom access, put the endpoint behind an authenticated HTTPS reverse proxy that passes WebSocket connections. Each instance is one shared desktop. Assign a separate Compose project and host port per team when teams need independent sessions. Offer the service to trusted users and run untrusted student code only in an environment designed for that purpose.
+
+```bash
+ROBOCODE_WEB_PORT=6081 docker compose -p class-a up --build -d --wait
+docker compose -p class-a logs -f
+docker compose -p class-a down
 ```
 
-## Operacao
+## Data and upgrades
 
-- Subir: `docker compose up -d`
-- Parar: `docker compose down`
-- Logs: `docker compose logs -f`
+The `robocode-data` named volume keeps `robots`, `battles`, `config`, and `roborumble` data. Keep the same Compose project name when upgrading an existing deployment. The image uses the upstream Robocode 1.12.0 installer with a pinned SHA-256 digest. Runtime files come from the image, while the existing volume supplies class data. Robot files, settings, and battles in the documented directories are reused. Keep a backup of your volume before upgrading. `docker compose down` keeps the volume and `docker compose down --volumes` removes it.
 
-## Recomendacoes para uso com alunos
-
-- Publique por HTTPS atras de um proxy reverso (Nginx/Caddy/Traefik).
-- Troque a senha padrao no `.env`.
-- Se varios alunos usarem ao mesmo tempo, execute multiplas instancias em portas diferentes.
-- O volume `robocode-data` persiste configuracoes e robos entre reinicios.
-
-## Observacao importante
-
-Este setup instala automaticamente o Robocode no primeiro start do container usando o instalador oficial `robocode-1.10.1-setup.jar`.
+Run `bash tests/compose-config.sh` to check port binding and `bash tests/smoke.sh` to verify a fresh install, the browser endpoint, and upgrade with a disposable legacy volume. See [Contributing](CONTRIBUTING.md) for test requirements and [third-party notices](THIRD_PARTY_NOTICES.md) for upstream licensing.

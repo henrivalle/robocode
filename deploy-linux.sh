@@ -2,28 +2,19 @@
 
 set -euo pipefail
 
-if ! command -v docker >/dev/null 2>&1; then
-  echo "Docker nao encontrado. Instale Docker Engine antes de continuar." >&2
-  exit 1
-fi
+cd "$(dirname "${BASH_SOURCE[0]}")"
 
-if docker compose version >/dev/null 2>&1; then
-  COMPOSE_CMD="docker compose"
-elif command -v docker-compose >/dev/null 2>&1; then
-  COMPOSE_CMD="docker-compose"
-else
-  echo "Docker Compose nao encontrado. Instale o plugin docker compose." >&2
+if ! docker compose version >/dev/null 2>&1; then
+  echo "Docker Compose v2 or newer is required." >&2
   exit 1
 fi
 
 if [[ ! -f ".env" ]]; then
   cp .env.example .env
-  echo ".env criado a partir de .env.example. Ajuste a senha antes de abrir para a internet."
+  echo "Created .env from .env.example."
 fi
 
-${COMPOSE_CMD} build
-${COMPOSE_CMD} up -d
+docker compose up --build --detach --wait --wait-timeout 120
 
-echo
-echo "Robocode publicado."
-echo "Acesse no navegador: http://SEU_SERVIDOR:$(awk -F= '/^ROBOCODE_WEB_PORT=/{print $2}' .env)"
+address=$(docker compose port robocode-web 6080)
+printf '\nOpen Robocode on this host at http://%s/vnc.html\n' "$address"
