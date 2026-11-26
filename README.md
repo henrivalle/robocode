@@ -4,6 +4,8 @@
 
 Run Classic Robocode in a browser for Java programming labs. A Docker service starts the game on a virtual desktop and serves it via noVNC. Students need a browser. The host needs Docker Engine 28+ with BuildKit and Docker Compose v2 or newer.
 
+To contribute, pick a [beginner task](https://github.com/henrivalle/robocode/contribute) and check the [contributing guide](CONTRIBUTING.md).
+
 ## Start a lab
 
 ```bash
